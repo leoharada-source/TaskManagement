@@ -24,8 +24,19 @@ model User {
   email        String   @unique
   passwordHash String
   todos        Todo[]
+  categories   Category[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  todos     Todo[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Todo {
@@ -38,6 +49,8 @@ model Todo {
   completed   Boolean    @default(false)
   user        User       @relation(fields: [userId], references: [id])
   userId      String
+  category    Category   @relation(fields: [categoryId], references: [id])
+  categoryId  String
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 } 

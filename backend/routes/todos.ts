@@ -14,13 +14,10 @@ const COOKIE_NAME = 'token';
 
 // JWT auth middleware
 function requireAuth(req: Request, res: Response, next: NextFunction) {
-  console.log('Cookies received:', req.cookies);
   const token = req.cookies[COOKIE_NAME];
-  console.log('Token received:', token);
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
-    console.log('JWT payload:', payload);
     req.user = { id: payload.userId };
     next();
   } catch (err) {
@@ -35,7 +32,7 @@ router.use(requireAuth);
 // GET /api/todos - get all todos for the authenticated user
 router.get('/', async (req, res) => {
   try {
-    const todos = await prisma.todo.findMany({ where: { userId: req.user!.id } });
+    const todos = await prisma.todo.findMany({ where: { userId: req.user!.id }, include: { category: true } });
     res.json(todos);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch todos' });
@@ -45,7 +42,7 @@ router.get('/', async (req, res) => {
 // GET todo by id
 router.get('/:id', async (req, res) => {
   try {
-    const todo = await prisma.todo.findFirst({ where: { id: req.params.id, userId: req.user!.id } });
+    const todo = await prisma.todo.findFirst({ where: { id: req.params.id, userId: req.user!.id }, include: { category: true } });
     if (!todo) {
       return res.status(404).json({ error: 'Todo not found' });
     }
@@ -59,7 +56,11 @@ router.get('/:id', async (req, res) => {
 // POST /api/todos - create a new todo for the authenticated user
 router.post('/', async (req, res) => {
   try {
-    const { title, description, importance, status, dueDate, completed } = req.body;
+    const { title, description, importance, status, dueDate, completed, categoryId } = req.body;
+    if (!categoryId) return res.status(400).json({ error: 'categoryId is required' });
+    // Validate category belongs to user
+    const category = await prisma.category.findUnique({ where: { id: categoryId } });
+    if (!category || category.userId !== req.user!.id) return res.status(400).json({ error: 'Invalid category' });
     const todo = await prisma.todo.create({
       data: {
         title,
@@ -69,7 +70,9 @@ router.post('/', async (req, res) => {
         dueDate: dueDate ? new Date(dueDate) : undefined,
         completed: typeof completed === 'boolean' ? completed : false,
         userId: req.user!.id,
+        categoryId,
       },
+      include: { category: true },
     });
     res.status(201).json(todo);
   } catch (err) {
@@ -82,9 +85,15 @@ router.put('/:id', async (req, res) => {
   try {
     const todo = await prisma.todo.findFirst({ where: { id: req.params.id, userId: req.user!.id } });
     if (!todo) return res.status(404).json({ error: 'Todo not found' });
+    const { categoryId } = req.body;
+    if (categoryId) {
+      const category = await prisma.category.findUnique({ where: { id: categoryId } });
+      if (!category || category.userId !== req.user!.id) return res.status(400).json({ error: 'Invalid category' });
+    }
     const updated = await prisma.todo.update({
       where: { id: req.params.id },
       data: req.body,
+      include: { category: true },
     });
     res.json(updated);
   } catch (err) {
