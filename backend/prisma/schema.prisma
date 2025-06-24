@@ -1,0 +1,43 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Importance {
+  Low
+  Medium
+  High
+}
+
+enum Status {
+  Ready
+  InProgress
+  Done
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  todos        Todo[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Todo {
+  id          String      @id @default(uuid())
+  title       String
+  description String?
+  importance  Importance  @default(Medium)
+  status      Status      @default(Ready)
+  dueDate     DateTime?
+  completed   Boolean    @default(false)
+  user        User       @relation(fields: [userId], references: [id])
+  userId      String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+} 
