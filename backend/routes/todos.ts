@@ -85,18 +85,34 @@ router.put('/:id', async (req, res) => {
   try {
     const todo = await prisma.todo.findFirst({ where: { id: req.params.id, userId: req.user!.id } });
     if (!todo) return res.status(404).json({ error: 'Todo not found' });
-    const { categoryId } = req.body;
+    
+    const { categoryId, title, description, importance, dueDate, status, completed } = req.body;
+    
+    // Validate category if it's being updated
     if (categoryId) {
       const category = await prisma.category.findUnique({ where: { id: categoryId } });
       if (!category || category.userId !== req.user!.id) return res.status(400).json({ error: 'Invalid category' });
     }
+    
+    // Only update allowed fields
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (importance !== undefined) updateData.importance = importance;
+    if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
+    if (status !== undefined) updateData.status = status;
+    if (completed !== undefined) updateData.completed = completed;
+    if (categoryId !== undefined) updateData.categoryId = categoryId;
+    
     const updated = await prisma.todo.update({
       where: { id: req.params.id },
-      data: req.body,
+      data: updateData,
       include: { category: true },
     });
+    
     res.json(updated);
   } catch (err) {
+    console.error('Error updating todo:', err);
     res.status(500).json({ error: 'Failed to update todo' });
   }
 });
