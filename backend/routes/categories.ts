@@ -14,16 +14,16 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
 router.get('/', requireAuth, async (req: Request, res: Response) => {
   const user = (req as any).user as { id: string };
   const categories = await prisma.category.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'asc' } });
-  res.json(categories);
+  res.json({ success: true, data: categories });
 });
 
 // Create a new category
 router.post('/', requireAuth, async (req: Request, res: Response) => {
   const user = (req as any).user as { id: string };
   const { name } = req.body;
-  if (!name) return res.status(400).json({ error: 'Name is required' });
+  if (!name) return res.status(400).json({ success: false, error: 'Name is required' });
   const category = await prisma.category.create({ data: { name, userId: user.id } });
-  res.status(201).json(category);
+  res.status(201).json({ success: true, data: category });
 });
 
 // Update a category
@@ -31,11 +31,11 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   const user = (req as any).user as { id: string };
   const { id } = req.params;
   const { name } = req.body;
-  if (!name) return res.status(400).json({ error: 'Name is required' });
+  if (!name) return res.status(400).json({ success: false, error: 'Name is required' });
   const category = await prisma.category.findUnique({ where: { id } });
-  if (!category || category.userId !== user.id) return res.status(404).json({ error: 'Not found' });
+  if (!category || category.userId !== user.id) return res.status(404).json({ success: false, error: 'Not found' });
   const updated = await prisma.category.update({ where: { id }, data: { name } });
-  res.json(updated);
+  res.json({ success: true, data: updated });
 });
 
 // Delete a category
@@ -43,7 +43,7 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   const user = (req as any).user as { id: string };
   const { id } = req.params;
   const category = await prisma.category.findUnique({ where: { id } });
-  if (!category || category.userId !== user.id) return res.status(404).json({ error: 'Not found' });
+  if (!category || category.userId !== user.id) return res.status(404).json({ success: false, error: 'Not found' });
   await prisma.category.delete({ where: { id } });
   res.json({ success: true });
 });

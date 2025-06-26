@@ -59,12 +59,18 @@ router.post('/logout', (req, res) => {
 });
 
 // Me
-router.get('/me', (req, res) => {
+router.get('/me', async (req, res) => {
   const token = req.cookies[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
-    res.json({ id: payload.userId });
+    // Fetch user from DB
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true, email: true }
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ success: true, data: user });
   } catch {
     res.status(401).json({ error: 'Invalid token' });
   }

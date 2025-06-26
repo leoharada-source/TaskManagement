@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../prisma';
+import { Status } from '@prisma/client';
 
 declare module 'express-serve-static-core' {
   interface Request {
@@ -33,9 +34,9 @@ router.use(requireAuth);
 router.get('/', async (req, res) => {
   try {
     const todos = await prisma.todo.findMany({ where: { userId: req.user!.id }, include: { category: true } });
-    res.json(todos);
+    res.json({ success: true, data: todos });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch todos' });
+    res.status(500).json({ success: false, error: 'Failed to fetch todos' });
   }
 });
 
@@ -44,12 +45,12 @@ router.get('/:id', async (req, res) => {
   try {
     const todo = await prisma.todo.findFirst({ where: { id: req.params.id, userId: req.user!.id }, include: { category: true } });
     if (!todo) {
-      return res.status(404).json({ error: 'Todo not found' });
+      return res.status(404).json({ success: false, error: 'Todo not found' });
     }
-    res.json(todo);
+    res.json({ success: true, data: todo });
   } catch (error) {
     console.error('Error fetching todo:', error);
-    res.status(500).json({ error: 'Failed to fetch todo' });
+    res.status(500).json({ success: false, error: 'Failed to fetch todo' });
   }
 });
 
@@ -57,10 +58,10 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { title, description, importance, status, dueDate, completed, categoryId } = req.body;
-    if (!categoryId) return res.status(400).json({ error: 'categoryId is required' });
+    if (!categoryId) return res.status(400).json({ success: false, error: 'categoryId is required' });
     // Validate category belongs to user
     const category = await prisma.category.findUnique({ where: { id: categoryId } });
-    if (!category || category.userId !== req.user!.id) return res.status(400).json({ error: 'Invalid category' });
+    if (!category || category.userId !== req.user!.id) return res.status(400).json({ success: false, error: 'Invalid category' });
     const todo = await prisma.todo.create({
       data: {
         title,
@@ -74,9 +75,9 @@ router.post('/', async (req, res) => {
       },
       include: { category: true },
     });
-    res.status(201).json(todo);
+    res.status(201).json({ success: true, data: todo });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create todo' });
+    res.status(500).json({ success: false, error: 'Failed to create todo' });
   }
 });
 
@@ -84,14 +85,14 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const todo = await prisma.todo.findFirst({ where: { id: req.params.id, userId: req.user!.id } });
-    if (!todo) return res.status(404).json({ error: 'Todo not found' });
+    if (!todo) return res.status(404).json({ success: false, error: 'Todo not found' });
     
     const { categoryId, title, description, importance, dueDate, status, completed } = req.body;
     
     // Validate category if it's being updated
     if (categoryId) {
       const category = await prisma.category.findUnique({ where: { id: categoryId } });
-      if (!category || category.userId !== req.user!.id) return res.status(400).json({ error: 'Invalid category' });
+      if (!category || category.userId !== req.user!.id) return res.status(400).json({ success: false, error: 'Invalid category' });
     }
     
     // Only update allowed fields
@@ -110,10 +111,10 @@ router.put('/:id', async (req, res) => {
       include: { category: true },
     });
     
-    res.json(updated);
+    res.json({ success: true, data: updated });
   } catch (err) {
     console.error('Error updating todo:', err);
-    res.status(500).json({ error: 'Failed to update todo' });
+    res.status(500).json({ success: false, error: 'Failed to update todo' });
   }
 });
 
@@ -121,36 +122,43 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const todo = await prisma.todo.findFirst({ where: { id: req.params.id, userId: req.user!.id } });
-    if (!todo) return res.status(404).json({ error: 'Todo not found' });
+    if (!todo) return res.status(404).json({ success: false, error: 'Todo not found' });
     await prisma.todo.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete todo' });
+    res.status(500).json({ success: false, error: 'Failed to delete todo' });
   }
 });
 
 // PATCH update todo status (for drag and drop)
 router.patch('/:id/status', async (req, res) => {
   try {
-    const { status } = req.body;
+    const status: string = req.body.status;
     const todo = await prisma.todo.findFirst({ where: { id: req.params.id, userId: req.user!.id } });
     
     if (!todo) {
-      return res.status(404).json({ error: 'Todo not found' });
+      return res.status(404).json({ success: false, error: 'Todo not found' });
     }
 
-    if (!['Ready', 'In Progress', 'Done'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
+    const statusMap: Record<string, string> = {
+      'Ready': 'Ready',
+      'In Progress': 'InProgress',
+      'InProgress': 'InProgress',
+      'Done': 'Done'
+    };
+    const prismaStatus = statusMap[status];
+    if (!prismaStatus) {
+      return res.status(400).json({ success: false, error: 'Invalid status' });
     }
 
     const updated = await prisma.todo.update({
       where: { id: req.params.id },
-      data: { status },
+      data: { status: Status[prismaStatus as keyof typeof Status] },
     });
-    res.json(updated);
+    res.json({ success: true, data: updated });
   } catch (error) {
     console.error('Error updating todo status:', error);
-    res.status(500).json({ error: 'Failed to update todo status' });
+    res.status(500).json({ success: false, error: 'Failed to update todo status' });
   }
 });
 
